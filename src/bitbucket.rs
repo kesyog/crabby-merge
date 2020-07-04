@@ -5,6 +5,7 @@ use reqwest::{
 };
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::time::Duration;
 
 #[derive(Default, Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,6 +50,7 @@ impl Api {
                 .default_headers(headers)
                 // Bitbucket server oddly seems to require this
                 .http1_title_case_headers()
+                .timeout(Duration::from_secs(10))
                 .build()
                 .unwrap(),
         }
