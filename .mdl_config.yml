@@ -1,0 +1,6 @@
+{
+  "comment": "Markdownlint config",
+
+  "default": true,
+  "MD013": { "line_length": 100 }
+}

@@ -1,0 +1,47 @@
+name: Rust
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+          toolchain: stable
+          components: clippy, rustfmt
+          override: true
+    - name: rustfmt
+      uses: mbrobbel/rustfmt-check@0.2.0
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    - name: clippy
+      uses: actions-rs/clippy-check@v1.0.5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Build with default features
+      run: cargo build --verbose
+    - name: Build with all features
+      run: cargo build --verbose --all-features
+    - name: Run tests
+      run: cargo test --verbose
+
+  mdl:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: markdownlint
+      uses: avto-dev/markdown-lint@v1
+      with: 
+        config: './.mdl_config.yml'
+        args: './README.md'
