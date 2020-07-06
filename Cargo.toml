@@ -3,14 +3,15 @@ name = "crabby-merge"
 version = "0.1.0"
 authors = ["Kesavan Yogeswaran <kesyog@gmail.com>"]
 edition = "2018"
+readme = "README.md"
+license = "Unlicense"
+homepage = "https://github.com/kesyog/crabby-merge"
+repository = "https://github.com/kesyog/crabby-merge"
 
 [profile.release]
-# lto = true
+lto = "thin"
 # codegen-units = 1
-# panic = "abort"
-
-[profile.dev.package."*"]
-opt-level = 3
+panic = "abort"
 
 [dependencies]
 anyhow = "^1.0"
@@ -24,5 +25,5 @@ reqwest = { version = "^0.10", default-features = false, features = ["rustls-tls
 serde = { version = "^1", features = ["derive"] }
 serde_json = "^1"
 simple_logger = "^1"
-tokio = { version = "^0.2", features = ["rt-threaded", "macros", "sync"] }
+tokio = { version = "^0.2", features = ["rt-core", "macros"] }
 url = "^2.1.1"

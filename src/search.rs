@@ -32,7 +32,7 @@ async fn check_prs(api: Arc<bitbucket::Api>, prs: Vec<PullRequest>) {
     future::join_all(prs.into_iter().map(|pr| {
         debug!("Checking {}", pr.links["self"][0]["href"]);
         let api_shared = Arc::clone(&api);
-        tokio::spawn(async move {
+        async move {
             if !should_merge(&api_shared, &pr).await {
                 debug!("No merge trigger found in {}", pr.links["self"][0]["href"]);
                 return;
@@ -42,7 +42,7 @@ async fn check_prs(api: Arc<bitbucket::Api>, prs: Vec<PullRequest>) {
                 Ok(()) => info!("Merged {}", pr.links["self"][0]["href"]),
                 Err(e) => error!("{:#}", e),
             };
-        })
+        }
     }))
     .await;
 }

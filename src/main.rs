@@ -37,7 +37,7 @@ async fn main() -> Result<()> {
 
     let api1 = Arc::clone(&api);
     // Return the number of PR's checked
-    let f1 = tokio::spawn(async move {
+    let f1 = async move {
         match search::own_prs(api1).await {
             Ok(n) => n,
             Err(e) => {
@@ -45,11 +45,11 @@ async fn main() -> Result<()> {
                 0
             }
         }
-    });
+    };
 
     let api2 = Arc::clone(&api);
     // Return the number of PR's checked
-    let f2 = tokio::spawn(async move {
+    let f2 = async move {
         match search::approved_prs(api2).await {
             Ok(n) => n,
             Err(e) => {
@@ -57,12 +57,12 @@ async fn main() -> Result<()> {
                 0
             }
         }
-    });
+    };
 
     let (own_prs_checked, approved_prs_checked) = future::join(f1, f2).await;
     info!(
         "Own PR's checked: {} Approved PR's checked: {}",
-        own_prs_checked?, approved_prs_checked?
+        own_prs_checked, approved_prs_checked
     );
     Ok(())
 }
