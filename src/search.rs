@@ -22,18 +22,35 @@ fn is_trigger_present(text: &str) -> bool {
     RE.is_match(text)
 }
 
-async fn should_merge(_api: &bitbucket::Api, pr: &PullRequest) -> bool {
+async fn should_merge(api: &bitbucket::Api, pr: &PullRequest, username: &str) -> bool {
     // Check PR description for trigger
-    is_trigger_present(pr.description.as_ref().unwrap_or(&"".to_string()))
-    // TODO: check PR comments too
+    if is_trigger_present(pr.description.as_ref().unwrap_or(&"".to_string())) {
+        info!("Found trigger in PR description");
+        return true;
+    }
+    let comments = match api.get_pr_comments(pr, Some(username)).await {
+        Ok(comments) => comments,
+        Err(e) => {
+            error!("{:#}", e);
+            Vec::new()
+        }
+    };
+    for comment in comments {
+        if is_trigger_present(&comment) {
+            info!("Found trigger in PR comment");
+            return true;
+        }
+    }
+    false
 }
 
-async fn check_prs(api: Arc<bitbucket::Api>, prs: Vec<PullRequest>) {
+async fn check_prs(api: Arc<bitbucket::Api>, prs: Vec<PullRequest>, username: Arc<String>) {
     future::join_all(prs.into_iter().map(|pr| {
         debug!("Checking {}", pr.links["self"][0]["href"]);
         let api_shared = Arc::clone(&api);
+        let username = Arc::clone(&username);
         async move {
-            if !should_merge(&api_shared, &pr).await {
+            if !should_merge(&api_shared, &pr, &username).await {
                 debug!("No merge trigger found in {}", pr.links["self"][0]["href"]);
                 return;
             }
@@ -55,7 +72,9 @@ pub async fn own_prs(api: Arc<bitbucket::Api>) -> Result<usize> {
     params.insert("role", "author".to_string());
     let prs = api.get_prs(Some(params)).await?;
     let n_prs = prs.len();
-    check_prs(api, prs).await;
+    let username = prs[0].author["user"]["name"].as_str().unwrap().to_string();
+    debug!("Username found for own PR's: {}", username);
+    check_prs(api, prs, Arc::new(username)).await;
     Ok(n_prs)
 }
 
@@ -66,9 +85,13 @@ pub async fn approved_prs(api: Arc<bitbucket::Api>) -> Result<usize> {
     params.insert("state", "open".to_string());
     params.insert("role", "reviewer".to_string());
     params.insert("participantStatus", "approved".to_string());
-    let prs = api.get_prs(Some(params)).await?;
+    let (prs, username) = future::join(api.get_prs(Some(params)), api.get_username()).await;
+    let prs = prs?;
+    let username = username?;
+
     let n_prs = prs.len();
-    check_prs(api, prs).await;
+    debug!("Username returned by API: {}", username);
+    check_prs(api, prs, Arc::new(username)).await;
     Ok(n_prs)
 }
 

@@ -5,9 +5,17 @@ use reqwest::{
 };
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::mem;
 use std::time::Duration;
 
-#[derive(Default, Debug, Clone, Deserialize)]
+#[derive(Debug)]
+/// A Bitbucket API client
+pub struct Api {
+    base_url: String,
+    http_client: reqwest::Client,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PullRequest {
     id: u32,
@@ -15,16 +23,11 @@ pub struct PullRequest {
     // TODO: use strong typing rather than relying on serde_json::Value to eliminate a bunch of
     // panic paths from indexing
     to_ref: serde_json::Value,
-    // The PR's URL is nested within this field so it's left public
+    /// `links["self"][0]["href"] contains the PR URL
     pub links: serde_json::Value,
     version: i32,
-}
-
-#[derive(Debug, Clone)]
-/// A Bitbucket API client
-pub struct Api {
-    base_url: String,
-    http_client: reqwest::Client,
+    /// `author["user"]["name"]` contains the author's username
+    pub author: serde_json::Value,
 }
 
 impl Api {
@@ -86,12 +89,12 @@ impl Api {
         Ok(self.http_client.get(&url).query(&params).send().await?)
     }
 
-    /// Returns all of the values returned by a paged GET endpoint
+    /// Returns the values returned by a paged GET endpoint
     async fn get_paged_api(
         &self,
         endpoint: &str,
         params: Option<HashMap<&str, String>>,
-    ) -> Result<Vec<serde_json::Value>> {
+    ) -> Result<serde_json::Value> {
         /// The response to a single GET request
         #[derive(Deserialize)]
         #[serde(rename_all = "camelCase")]
@@ -114,16 +117,98 @@ impl Api {
             }
             break;
         }
-        Ok(values)
+        Ok(values.into())
     }
 
     /// Returns the username of the authenticated user
-    pub async fn _get_username(&self) -> Result<String> {
+    pub async fn get_username(&self) -> Result<String> {
         Ok(self
             .get("/plugins/servlet/applinks/whoami", None)
             .await?
             .text()
             .await?)
+    }
+
+    /// Returns the text of all comments made on a given PR
+    ///
+    /// # Arguments
+    ///
+    /// * `pr` - Pull request to search
+    /// * `username` - If not `None`, only comments written by the provided user will be
+    /// included
+    pub async fn get_pr_comments(
+        &self,
+        pr: &PullRequest,
+        username: Option<&str>,
+    ) -> Result<Vec<String>> {
+        #[derive(Deserialize)]
+        struct CommentAuthor {
+            name: String,
+        }
+
+        #[derive(Deserialize)]
+        struct Comment {
+            author: CommentAuthor,
+            text: String,
+            #[serde(rename = "comments")]
+            replies: Vec<Comment>,
+        }
+
+        #[derive(Deserialize)]
+        struct Activity {
+            action: String,
+            comment: Option<Comment>,
+        }
+
+        /// Helper function to recurse through comment replies
+        fn recurse_nested_comments(
+            comments: &mut Vec<Comment>,
+            comment_text: &mut Vec<String>,
+            username: &Option<&str>,
+        ) {
+            for comment in comments {
+                if username.is_none() || *username == Some(&comment.author.name) {
+                    let new_comment = mem::replace(&mut comment.text, String::new());
+                    comment_text.push(new_comment);
+                }
+                recurse_nested_comments(&mut comment.replies, comment_text, username);
+            }
+        }
+
+        // Using the pull request activities API to fetch comments, as it's more ergonomic than the
+        // comments API
+        let endpoint = format!(
+            "/rest/api/1.0/projects/{project_key}/repos/{repo_slug}/pull-requests/{id}/activities",
+            project_key = pr.to_ref["repository"]["project"]["key"].as_str().unwrap(),
+            repo_slug = pr.to_ref["repository"]["slug"].as_str().unwrap(),
+            id = pr.id,
+        );
+        let activities: Vec<Activity> =
+            serde_json::from_value(self.get_paged_api(&endpoint, None).await?)?;
+        Ok(activities
+            .into_iter()
+            // Assemble a vector containing all top-level comments and comment replies, filtering
+            // out comments written by other users if a username was provided
+            .flat_map(|activity| {
+                // The activities API can return other events besides comments. Filter out anything that
+                // is not a comment.
+                if activity.action != "COMMENTED" || activity.comment.is_none() {
+                    return Vec::new();
+                }
+                let mut top_level_comment = activity.comment.unwrap();
+                let mut comment_text = Vec::new();
+                if username.is_none() || username == Some(&top_level_comment.author.name) {
+                    let new_comment = mem::replace(&mut top_level_comment.text, String::new());
+                    comment_text.push(new_comment);
+                }
+                recurse_nested_comments(
+                    &mut top_level_comment.replies,
+                    &mut comment_text,
+                    &username,
+                );
+                comment_text
+            })
+            .collect())
     }
 
     /// Returns a list of pull requests affiliated with the authenticated user
@@ -137,9 +222,7 @@ impl Api {
         let raw_result = self
             .get_paged_api("/rest/api/1.0/dashboard/pull-requests", params)
             .await?;
-        Ok(serde_json::from_value(serde_json::Value::Array(
-            raw_result,
-        ))?)
+        Ok(serde_json::from_value(raw_result)?)
     }
 
     /// Check if a pull request is able to be merged without actually merging it

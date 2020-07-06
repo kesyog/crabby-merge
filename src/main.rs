@@ -12,8 +12,8 @@
 //! * `BITBUCKET_URL` - base URL of the Bitbucket server to query
 //! * `BITBUCKET_API_TOKEN` - API token for user authentication
 //! * `CRABBY_MERGE_TRIGGER` - (optional) Regex string to look in PR descriptions for that indicates
-//! that a PR is ready to merge. Must be on its own line in the PR description. Defaults to
-//! `:shipit:`.
+//! that a PR is ready to merge. Must be on its own line in either the PR description or one of the
+//! user's own comments. Defaults to `:shipit:`.
 
 mod bitbucket;
 mod search;
