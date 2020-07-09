@@ -28,10 +28,8 @@ jobs:
       uses: actions-rs/clippy-check@v1.0.5
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-    - name: Build with default features
+    - name: Build
       run: cargo build --verbose
-    - name: Build with all features
-      run: cargo build --verbose --all-features
     - name: Run tests
       run: cargo test --verbose
 

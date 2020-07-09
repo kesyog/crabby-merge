@@ -8,26 +8,39 @@ use std::collections::HashMap;
 use std::mem;
 use std::time::Duration;
 
-#[derive(Debug)]
-/// A Bitbucket API client
-pub struct Api {
-    base_url: String,
-    http_client: reqwest::Client,
-}
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PullRequest {
     id: u32,
     pub description: Option<String>,
-    // TODO: use strong typing rather than relying on serde_json::Value to eliminate a bunch of
-    // panic paths from indexing
     to_ref: serde_json::Value,
     /// `links["self"][0]["href"] contains the PR URL
-    pub links: serde_json::Value,
+    links: serde_json::Value,
     version: i32,
     /// `author["user"]["name"]` contains the author's username
-    pub author: serde_json::Value,
+    author: serde_json::Value,
+}
+
+impl PullRequest {
+    pub fn url(&self) -> Option<&str> {
+        self.links.get("self").and_then(|s| {
+            s.get(0)
+                .and_then(|arr| arr.get("href").and_then(serde_json::Value::as_str))
+        })
+    }
+
+    pub fn author(&self) -> Option<&str> {
+        self.author
+            .get("user")
+            .and_then(|u| u.get("name").and_then(serde_json::Value::as_str))
+    }
+}
+
+#[derive(Debug)]
+/// A Bitbucket API client
+pub struct Api {
+    base_url: String,
+    http_client: reqwest::Client,
 }
 
 impl Api {
@@ -253,7 +266,7 @@ impl Api {
         // TODO: maybe just skip this check and use the POST error response instead
         self.can_merge(pr)
             .await
-            .with_context(|| format!("PR not ready to merge: {}", pr.links["self"][0]["href"]))?;
+            .with_context(|| format!("PR not ready to merge: {}", pr.url().unwrap()))?;
 
         let endpoint = format!(
             "/rest/api/1.0/projects/{project_key}/repos/{repo_slug}/pull-requests/{id}/merge",
@@ -269,7 +282,7 @@ impl Api {
         } else {
             Err(anyhow!(
                 "PR merge failed for {}\n{}",
-                pr.links["self"][0]["href"],
+                pr.url().unwrap(),
                 response.text().await?
             ))
         }

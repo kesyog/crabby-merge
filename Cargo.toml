@@ -1,6 +1,6 @@
 [package]
 name = "crabby-merge"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Kesavan Yogeswaran <kesyog@gmail.com>"]
 edition = "2018"
 readme = "README.md"
@@ -15,8 +15,8 @@ panic = "abort"
 
 [dependencies]
 anyhow = "^1.0"
-# TODO: remove and access environment variables directly
-dotenv = { version = "^0.15.0" }
+config = { version = "^0.10.1", default-features = false, features = ["toml"] }
+dirs = "^3.0.1"
 futures = "^0.3.5"
 lazy_static = "^1.4.0"
 log = "^0.4"
