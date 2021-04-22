@@ -46,6 +46,7 @@ use futures::future;
 use log::{error, info};
 use regex::{Regex, RegexBuilder};
 use serde::Deserialize;
+use simple_logger::SimpleLogger;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -101,7 +102,10 @@ fn load_config() -> Result<Config> {
 #[tokio::main]
 #[doc(hidden)]
 async fn main() -> Result<()> {
-    simple_logger::init_with_level(log::Level::Info)?;
+    SimpleLogger::new()
+        .with_level(log::LevelFilter::Info)
+        .init()
+        .unwrap();
 
     let config = load_config()?;
     let api = Arc::new(bitbucket::Api::new(
