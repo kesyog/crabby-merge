@@ -181,7 +181,7 @@ impl Api {
         ) {
             for comment in comments {
                 if username.is_none() || *username == Some(&comment.author.name) {
-                    let new_comment = mem::replace(&mut comment.text, String::new());
+                    let new_comment = mem::take(&mut comment.text);
                     comment_text.push(new_comment);
                 }
                 recurse_nested_comments(&mut comment.replies, comment_text, username);
@@ -211,7 +211,7 @@ impl Api {
                 let mut top_level_comment = activity.comment.unwrap();
                 let mut comment_text = Vec::new();
                 if username.is_none() || username == Some(&top_level_comment.author.name) {
-                    let new_comment = mem::replace(&mut top_level_comment.text, String::new());
+                    let new_comment = mem::take(&mut top_level_comment.text);
                     comment_text.push(new_comment);
                 }
                 recurse_nested_comments(
