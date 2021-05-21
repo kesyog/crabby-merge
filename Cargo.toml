@@ -1,16 +1,23 @@
 [package]
 name = "crabby-merge"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Kesavan Yogeswaran <kesyog@gmail.com>"]
 edition = "2018"
 readme = "README.md"
 license = "Apache-2.0"
 homepage = "https://github.com/kesyog/crabby-merge"
 repository = "https://github.com/kesyog/crabby-merge"
+documentation = "https://github.com/kesyog/crabby-merge"
+description = "A utility to poll open Bitbucket PR's and merge them based on a configurable trigger."
+keywords = ["bitbucket"]
+categories = ["command-line-utilities"]
+exclude = [
+  ".github",
+  ".mdl_config.yml"
+]
 
 [profile.release]
 lto = "thin"
-# codegen-units = 1
 panic = "abort"
 
 [dependencies]
