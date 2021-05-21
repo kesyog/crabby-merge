@@ -5,6 +5,24 @@
 //! This is mostly just a ripoff port of [polly-merge](https://github.com/noahp/polly-merge) into
 //! async Rust for learning purposes.
 //!
+//! ## Installation
+//!
+//! Install via [Cargo](https://rustup.rs):
+//!
+//! ```sh
+//! cargo install crabby-merge
+//! ```
+//!
+//! ## Usage
+//!
+//! Ideally, you'd schedule crabby-merge to be run periodically. To accomplish this with [cron](https://en.wikipedia.org/wiki/Cron),
+//! on a Unix-like machine, run `crontab -e` and add an entry like:
+//!
+//! ```text
+//! # Schedule crabby-merge to run every two minutes
+//! */2 * * * * $HOME/.cargo/bin/crabby-merge
+//! ```
+//!
 //! ## Configuration
 //!
 //! ### TOML

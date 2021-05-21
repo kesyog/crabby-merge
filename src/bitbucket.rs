@@ -14,7 +14,7 @@ pub struct PullRequest {
     id: u32,
     pub description: Option<String>,
     to_ref: serde_json::Value,
-    /// `links["self"][0]["href"] contains the PR URL
+    /// `links["self"][0]["href"]` contains the PR URL
     links: serde_json::Value,
     version: i32,
     /// `author["user"]["name"]` contains the author's username
