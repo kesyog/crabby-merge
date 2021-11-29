@@ -75,7 +75,7 @@ impl Client {
     /// * `api_token` - API token for user authentication
     pub fn new(base_url: &impl ToString, api_token: &impl ToString) -> Self {
         let mut headers = HeaderMap::with_capacity(3);
-        let auth_header_value = "Bearer ".to_string() + &api_token.to_string();
+        let auth_header_value = "Bearer ".to_owned() + &api_token.to_string();
         headers.insert(
             AUTHORIZATION,
             HeaderValue::from_str(&auth_header_value).unwrap(),
@@ -141,7 +141,7 @@ impl Client {
 
         let mut values = Vec::new();
         let mut params = params.unwrap_or_else(|| HashMap::with_capacity(1));
-        params.insert("start", "0".to_string());
+        params.insert("start", "0".to_owned());
         loop {
             let page: Page =
                 serde_json::from_str(&self.get(endpoint, Some(&params)).await?.text().await?)?;
@@ -200,10 +200,10 @@ impl Client {
         fn recurse_nested_comments(
             comments: &mut Vec<Comment>,
             comment_text: &mut Vec<String>,
-            username: &Option<&str>,
+            username: Option<&str>,
         ) {
             for comment in comments {
-                if username.is_none() || *username == Some(&comment.author.name) {
+                if username.is_none() || username == Some(&comment.author.name) {
                     let new_comment = mem::take(&mut comment.text);
                     comment_text.push(new_comment);
                 }
@@ -240,7 +240,7 @@ impl Client {
                 recurse_nested_comments(
                     &mut top_level_comment.replies,
                     &mut comment_text,
-                    &username,
+                    username,
                 );
                 comment_text
             })
@@ -274,7 +274,7 @@ impl Client {
         response_json
             .as_object()
             .and_then(|response| {
-                if let Some(serde_json::Value::Bool(true)) = response.get("canMerge") {
+                if response.get("canMerge") == Some(&serde_json::Value::Bool(true)) {
                     Some(())
                 } else {
                     None

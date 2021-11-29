@@ -70,28 +70,42 @@ use simple_logger::SimpleLogger;
 use std::path::Path;
 use std::sync::Arc;
 
-#[derive(Debug, Deserialize)]
-struct Config {
+#[derive(Debug, Clone)]
+pub struct Config {
     bitbucket_url: String,
     bitbucket_api_token: String,
-    merge_trigger: String,
+    #[cfg(feature = "jenkins")]
+    jenkins_auth: Option<jenkins::Auth>,
     check_description: bool,
     check_comments: bool,
     check_own_prs: bool,
     check_approved_prs: bool,
-    // A bit awkward to keep the regex here. Problem for another day.
-    #[serde(skip)]
-    merge_regex: Option<Regex>,
+    merge_regex: Regex,
 }
 
 fn load_config() -> Result<Config> {
+    #[derive(Debug, Deserialize)]
+    struct Options {
+        bitbucket_url: String,
+        bitbucket_api_token: String,
+        #[cfg(feature = "jenkins")]
+        jenkins_username: Option<String>,
+        #[cfg(feature = "jenkins")]
+        jenkins_password: Option<String>,
+        merge_trigger: String,
+        check_description: bool,
+        check_comments: bool,
+        check_own_prs: bool,
+        check_approved_prs: bool,
+    }
+
     let mut config_path =
         dirs::home_dir().ok_or_else(|| anyhow!("Couldn't resolve home directory"))?;
     config_path.push(Path::new(".crabby_merge.toml"));
-    let config_path = config_path
+    let config_path: String = config_path
         .into_os_string()
         .into_string()
-        .map_err(|_| anyhow!("Couldn't resolve config_path"))?;
+        .map_err(|path| anyhow!("Couldn't resolve config_path: {}", path.to_string_lossy()))?;
 
     let mut config_loader = config::Config::new();
     config_loader
@@ -103,20 +117,31 @@ fn load_config() -> Result<Config> {
         .set_default("check_own_prs", true)?
         .set_default("check_approved_prs", false)?;
 
-    let mut config: Config = config_loader.try_into().with_context(|| {
+    let config: Options = config_loader.try_into().with_context(|| {
         format!(
             "Please set bitbucket_url and bitbucket_api_token either in {} or as environment \
             variables with the prefix \"CRABBY_MERGE\"",
             config_path
         )
     })?;
-    config.merge_regex = Some(
-        RegexBuilder::new(&config.merge_trigger)
-            .multi_line(true)
-            .build()
-            .with_context(|| format!("Bad regex: {}", config.merge_trigger))?,
-    );
-    Ok(config)
+    let merge_regex = RegexBuilder::new(&config.merge_trigger)
+        .multi_line(true)
+        .build()
+        .with_context(|| format!("Bad regex: {}", config.merge_trigger))?;
+    Ok(Config {
+        bitbucket_url: config.bitbucket_url,
+        bitbucket_api_token: config.bitbucket_api_token,
+        #[cfg(feature = "jenkins")]
+        jenkins_auth: match (config.jenkins_username, config.jenkins_password) {
+            (Some(username), Some(password)) => Some(jenkins::Auth::new(username, password)),
+            _ => None,
+        },
+        check_comments: config.check_comments,
+        check_description: config.check_description,
+        check_own_prs: config.check_own_prs,
+        check_approved_prs: config.check_approved_prs,
+        merge_regex,
+    })
 }
 
 #[tokio::main]

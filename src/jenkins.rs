@@ -3,6 +3,7 @@ use jenkins_api::{
     action::{parameters::*, ParametersAction},
     build::WorkflowRun,
 };
+use log::warn;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use reqwest::header::ACCEPT;
@@ -11,9 +12,15 @@ use reqwest::header::ACCEPT;
 /// Authentication information
 pub struct Auth {
     /// Username
-    pub username: String,
+    username: String,
     /// Password or API token
-    pub password: String,
+    password: String,
+}
+
+impl Auth {
+    pub fn new(username: String, password: String) -> Self {
+        Self { username, password }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -34,7 +41,7 @@ impl Job {
             .captures(job_url)
             .ok_or_else(|| anyhow!("Invalid URL: {}", job_url))?;
 
-        Ok(Job {
+        Ok(Self {
             base_url: captures[1].to_string(),
             id: captures[2].to_string(),
             credentials,
@@ -77,6 +84,8 @@ impl Job {
                 request = request.query(&[(&param.name, &param.value)]);
             } else if let Ok(param) = param.as_variant::<BooleanParameterValue>() {
                 request = request.query(&[(&param.name, &param.value.to_string())]);
+            } else {
+                warn!("Parameter is not a String or Boolean parameter");
             }
         }
         let response = request
