@@ -8,11 +8,28 @@ use std::collections::HashMap;
 use std::mem;
 use std::time::Duration;
 
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum BuildState {
+    Successful,
+    InProgress,
+    Failed,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct BuildStatus {
+    pub state: BuildState,
+    pub key: String,
+    pub name: String,
+    pub url: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PullRequest {
     id: u32,
     pub description: Option<String>,
+    from_ref: serde_json::Value,
     to_ref: serde_json::Value,
     /// `links["self"][0]["href"]` contains the PR URL
     links: serde_json::Value,
@@ -34,16 +51,22 @@ impl PullRequest {
             .get("user")
             .and_then(|u| u.get("name").and_then(serde_json::Value::as_str))
     }
+
+    pub fn hash(&self) -> Option<&str> {
+        self.from_ref
+            .get("latestCommit")
+            .and_then(serde_json::Value::as_str)
+    }
 }
 
 #[derive(Debug)]
 /// A Bitbucket API client
-pub struct Api {
+pub struct Client {
     base_url: String,
     http_client: reqwest::Client,
 }
 
-impl Api {
+impl Client {
     /// Returns a Bitbucket API client
     ///
     /// # Arguments
@@ -52,7 +75,7 @@ impl Api {
     /// * `api_token` - API token for user authentication
     pub fn new(base_url: &impl ToString, api_token: &impl ToString) -> Self {
         let mut headers = HeaderMap::with_capacity(3);
-        let auth_header_value = "Bearer ".to_string() + &api_token.to_string();
+        let auth_header_value = "Bearer ".to_owned() + &api_token.to_string();
         headers.insert(
             AUTHORIZATION,
             HeaderValue::from_str(&auth_header_value).unwrap(),
@@ -118,7 +141,7 @@ impl Api {
 
         let mut values = Vec::new();
         let mut params = params.unwrap_or_else(|| HashMap::with_capacity(1));
-        params.insert("start", "0".to_string());
+        params.insert("start", "0".to_owned());
         loop {
             let page: Page =
                 serde_json::from_str(&self.get(endpoint, Some(&params)).await?.text().await?)?;
@@ -177,10 +200,10 @@ impl Api {
         fn recurse_nested_comments(
             comments: &mut Vec<Comment>,
             comment_text: &mut Vec<String>,
-            username: &Option<&str>,
+            username: Option<&str>,
         ) {
             for comment in comments {
-                if username.is_none() || *username == Some(&comment.author.name) {
+                if username.is_none() || username == Some(&comment.author.name) {
                     let new_comment = mem::take(&mut comment.text);
                     comment_text.push(new_comment);
                 }
@@ -217,7 +240,7 @@ impl Api {
                 recurse_nested_comments(
                     &mut top_level_comment.replies,
                     &mut comment_text,
-                    &username,
+                    username,
                 );
                 comment_text
             })
@@ -251,7 +274,7 @@ impl Api {
         response_json
             .as_object()
             .and_then(|response| {
-                if let Some(serde_json::Value::Bool(true)) = response.get("canMerge") {
+                if response.get("canMerge") == Some(&serde_json::Value::Bool(true)) {
                     Some(())
                 } else {
                     None
@@ -286,5 +309,15 @@ impl Api {
                 response.text().await?
             ))
         }
+    }
+
+    /// Get build status of the given commit
+    ///
+    /// Uses https://docs.atlassian.com/bitbucket-server/rest/4.0.0/bitbucket-build-rest.html#idp58320
+    // TODO: use git hash type
+    pub async fn get_build_status(&self, hash: &str) -> Result<Vec<BuildStatus>> {
+        let endpoint = format!("/rest/build-status/1.0/commits/{}", hash);
+        let response = self.get_paged_api(&endpoint, None).await?;
+        Ok(serde_json::from_value(response)?)
     }
 }

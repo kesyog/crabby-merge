@@ -59,3 +59,21 @@ Each of the TOML keys listed above can be prefixed with `CRABBY_MERGE` and provi
 environment variable. Keys are case-insensitive.
 
 For example, you can pass in the bitbucket API token as `CRABBY_MERGE_API_TOKEN=<your token here>`.
+
+## Jenkins rebuild support
+
+There is experimental support for rebuilding failed Jenkins builds whose name matches a provided
+regex trigger. This is a sad workaround for flaky blocking tests. This is compile-time gated by the
+`jenkins` feature, which is enabled by default.
+
+To use it, add the following fields to your configuration file. If these fields aren't provided, the
+retry functionality will be disabled at runtime.
+
+```toml
+jenkins_username = ""
+jenkins_password = ""
+# Regex trigger to search against the build name
+jenkins_retry_trigger = ""
+```
+
+Note: there is no limit or backoff period provided so be careful of retry loops.

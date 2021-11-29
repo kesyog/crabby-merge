@@ -54,68 +54,36 @@
 //! environment variable. Keys are case-insensitive.
 //!
 //! For example, you can pass in the bitbucket API token as `CRABBY_MERGE_API_TOKEN=<your token here>`.
+//!
+//! ## Jenkins rebuild support
+//!
+//! There is experimental support for rebuilding failed Jenkins builds whose name matches a provided
+//! regex trigger. This is a sad workaround for flaky blocking tests. This is compile-time gated by
+//! the `jenkins` feature, which is enabled by default.
+//!
+//! To use it, add the following fields to your configuration file. If these fields aren't provided,
+//! the retry functionality will be disabled at runtime.
+//!
+//! ```toml
+//! jenkins_username = ""
+//! jenkins_password = ""
+//! # Regex trigger to search against the build name
+//! jenkins_retry_trigger = ""
+//! ```
+//!
+//! Note: there is no limit or backoff period provided so be careful of retry loops.
 
-mod bitbucket;
-mod search;
+pub use crabby_merge::bitbucket;
+#[cfg(feature = "jenkins")]
+pub use crabby_merge::jenkins;
+pub use crabby_merge::search;
 
-use anyhow::{anyhow, Context, Result};
-use config::{Environment, File, FileFormat};
+use anyhow::Result;
+use crabby_merge::Config;
 use futures::future;
 use log::{error, info};
-use regex::{Regex, RegexBuilder};
-use serde::Deserialize;
 use simple_logger::SimpleLogger;
-use std::path::Path;
 use std::sync::Arc;
-
-#[derive(Debug, Deserialize)]
-pub struct Config {
-    bitbucket_url: String,
-    bitbucket_api_token: String,
-    merge_trigger: String,
-    check_description: bool,
-    check_comments: bool,
-    check_own_prs: bool,
-    check_approved_prs: bool,
-    // A bit awkward to keep the regex here. Problem for another day.
-    #[serde(skip)]
-    merge_regex: Option<Regex>,
-}
-
-fn load_config() -> Result<Config> {
-    let mut config_path =
-        dirs::home_dir().ok_or_else(|| anyhow!("Couldn't resolve home directory"))?;
-    config_path.push(Path::new(".crabby_merge.toml"));
-    let config_path = config_path
-        .into_os_string()
-        .into_string()
-        .map_err(|_| anyhow!("Couldn't resolve config_path"))?;
-
-    let mut config_loader = config::Config::new();
-    config_loader
-        .merge(File::new(&config_path, FileFormat::Toml).required(false))?
-        .merge(Environment::with_prefix("CRABBY_MERGE"))?
-        .set_default("merge_trigger", ":shipit:")?
-        .set_default("check_description", true)?
-        .set_default("check_comments", false)?
-        .set_default("check_own_prs", true)?
-        .set_default("check_approved_prs", false)?;
-
-    let mut config: Config = config_loader.try_into().with_context(|| {
-        format!(
-            "Please set bitbucket_url and bitbucket_api_token either in {} or as environment \
-            variables with the prefix \"CRABBY_MERGE\"",
-            config_path
-        )
-    })?;
-    config.merge_regex = Some(
-        RegexBuilder::new(&config.merge_trigger)
-            .multi_line(true)
-            .build()
-            .with_context(|| format!("Bad regex: {}", config.merge_trigger))?,
-    );
-    Ok(config)
-}
 
 #[tokio::main]
 #[doc(hidden)]
@@ -125,8 +93,8 @@ async fn main() -> Result<()> {
         .init()
         .unwrap();
 
-    let config = load_config()?;
-    let api = Arc::new(bitbucket::Api::new(
+    let config = Config::load_from_default_file()?;
+    let api = Arc::new(bitbucket::Client::new(
         &config.bitbucket_url,
         &config.bitbucket_api_token,
     ));
