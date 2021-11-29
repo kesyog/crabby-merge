@@ -1,4 +1,4 @@
-use crate::bitbucket::PullRequest;
+use crate::bitbucket::{BuildState, PullRequest};
 use crate::{bitbucket, Config};
 use anyhow::Result;
 use futures::future;
@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 async fn should_merge(
-    api: &bitbucket::Api,
+    api: &bitbucket::Client,
     pr: &PullRequest,
     username: &str,
     config: Arc<Config>,
@@ -46,7 +46,7 @@ async fn should_merge(
 }
 
 async fn check_prs(
-    api: Arc<bitbucket::Api>,
+    api: Arc<bitbucket::Client>,
     prs: Vec<PullRequest>,
     username: Arc<String>,
     config: Arc<Config>,
@@ -73,7 +73,7 @@ async fn check_prs(
 
 /// Search PR's authored by the authenticated user for the merge trigger and returns the number of
 /// PR's checked.
-pub async fn own_prs(api: Arc<bitbucket::Api>, config: Arc<Config>) -> Result<usize> {
+pub(crate) async fn own_prs(api: Arc<bitbucket::Client>, config: Arc<Config>) -> Result<usize> {
     let mut params: HashMap<&str, String> = HashMap::with_capacity(2);
     params.insert("state", "open".to_string());
     params.insert("role", "author".to_string());
@@ -88,7 +88,10 @@ pub async fn own_prs(api: Arc<bitbucket::Api>, config: Arc<Config>) -> Result<us
 
 /// Searches PR's approved by the authenticated user for the merge trigger and returns the number
 /// of PR's checked.
-pub async fn approved_prs(api: Arc<bitbucket::Api>, config: Arc<Config>) -> Result<usize> {
+pub(crate) async fn approved_prs(
+    api: Arc<bitbucket::Client>,
+    config: Arc<Config>,
+) -> Result<usize> {
     let mut params: HashMap<&str, String> = HashMap::with_capacity(3);
     params.insert("state", "open".to_string());
     params.insert("role", "reviewer".to_string());

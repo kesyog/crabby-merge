@@ -8,11 +8,28 @@ use std::collections::HashMap;
 use std::mem;
 use std::time::Duration;
 
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum BuildState {
+    Successful,
+    InProgress,
+    Failed,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct BuildStatus {
+    pub state: BuildState,
+    pub key: String,
+    pub name: String,
+    pub url: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PullRequest {
     id: u32,
     pub description: Option<String>,
+    from_ref: serde_json::Value,
     to_ref: serde_json::Value,
     /// `links["self"][0]["href"]` contains the PR URL
     links: serde_json::Value,
@@ -34,16 +51,22 @@ impl PullRequest {
             .get("user")
             .and_then(|u| u.get("name").and_then(serde_json::Value::as_str))
     }
+
+    pub fn hash(&self) -> Option<&str> {
+        self.from_ref
+            .get("latestCommit")
+            .and_then(serde_json::Value::as_str)
+    }
 }
 
 #[derive(Debug)]
 /// A Bitbucket API client
-pub struct Api {
+pub struct Client {
     base_url: String,
     http_client: reqwest::Client,
 }
 
-impl Api {
+impl Client {
     /// Returns a Bitbucket API client
     ///
     /// # Arguments
@@ -286,5 +309,13 @@ impl Api {
                 response.text().await?
             ))
         }
+    }
+
+    /// https://docs.atlassian.com/bitbucket-server/rest/4.0.0/bitbucket-build-rest.html#idp58320
+    // todo: use git hash type
+    pub async fn get_build_status(&self, hash: &str) -> Result<Vec<BuildStatus>> {
+        let endpoint = format!("/rest/build-status/1.0/commits/{}", hash);
+        let response = self.get_paged_api(&endpoint, None).await?;
+        Ok(serde_json::from_value(response)?)
     }
 }

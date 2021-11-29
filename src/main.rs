@@ -56,6 +56,8 @@
 //! For example, you can pass in the bitbucket API token as `CRABBY_MERGE_API_TOKEN=<your token here>`.
 
 mod bitbucket;
+#[cfg(feature = "jenkins")]
+mod jenkins;
 mod search;
 
 use anyhow::{anyhow, Context, Result};
@@ -69,7 +71,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 #[derive(Debug, Deserialize)]
-pub struct Config {
+struct Config {
     bitbucket_url: String,
     bitbucket_api_token: String,
     merge_trigger: String,
@@ -126,7 +128,7 @@ async fn main() -> Result<()> {
         .unwrap();
 
     let config = load_config()?;
-    let api = Arc::new(bitbucket::Api::new(
+    let api = Arc::new(bitbucket::Client::new(
         &config.bitbucket_url,
         &config.bitbucket_api_token,
     ));
