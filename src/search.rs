@@ -59,7 +59,27 @@ async fn check_prs(
 
             match api_shared.merge_pr(&pr).await {
                 Ok(()) => info!("Merged {}", pr.url().unwrap()),
-                Err(e) => error!("{:#}", e),
+                Err(e) => {
+                    error!("{:#}", e);
+                    // TODO gate on jenkins feature
+                    if let Some(hash) = pr.hash() {
+                        let builds = api_shared.get_build_status(hash).await;
+                        for build in builds.into_iter().flatten() {
+                            if build.state == BuildState::Failed && config.jenkins_auth.is_some() {
+                                let job = jenkins::Job::new(
+                                    &build.url,
+                                    config.jenkins_auth.as_ref().cloned().unwrap(),
+                                );
+                                // 2. Check if should be retried
+                                //   a. Regex match name/key. Maybe regex search failed build
+                                //   stage?
+                                //   b. Exponential backoff (how to store?). Maybe punt.
+                                // 3. Rebuild if applicable
+                                println!("{}: {:?} <{}>", build.name, build.state, build.url);
+                            }
+                        }
+                    }
+                }
             };
         }
     }))
