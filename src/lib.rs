@@ -52,23 +52,29 @@ impl Config {
             .into_string()
             .map_err(|path| anyhow!("Couldn't resolve config_path: {}", path.to_string_lossy()))?;
 
-        let mut config_loader = config::Config::new();
-        config_loader
-            .merge(File::new(&config_path, FileFormat::Toml).required(false))?
-            .merge(Environment::with_prefix("CRABBY_MERGE"))?
+        let config_builder = config::Config::builder()
+            .add_source(File::new(&config_path, FileFormat::Toml))
+            .add_source(Environment::with_prefix("CRABBY_MERGE"))
             .set_default("merge_trigger", ":shipit:")?
             .set_default("check_description", true)?
             .set_default("check_comments", false)?
             .set_default("check_own_prs", true)?
             .set_default("check_approved_prs", false)?;
 
-        let config: Options = config_loader.try_into().with_context(|| {
-            format!(
+        let config: Options = config_builder
+            .build()
+            .with_context(|| {
+                format!(
                 "Please set bitbucket_url and bitbucket_api_token either in {} or as environment \
             variables with the prefix \"CRABBY_MERGE\"",
                 config_path
             )
-        })?;
+            })
+            .and_then(|config| {
+                config
+                    .try_deserialize()
+                    .map_err(|_| anyhow!("failed to load config"))
+            })?;
         cfg_if::cfg_if! {
             if #[cfg(feature = "jenkins")] {
                 let retry_regex = match &config.jenkins_retry_trigger {

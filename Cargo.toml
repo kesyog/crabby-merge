@@ -27,7 +27,7 @@ panic = "abort"
 [dependencies]
 anyhow = "1"
 cfg-if = "1"
-config = { version = "0.11", default-features = false, features = ["toml"] }
+config = { version = "0.12", default-features = false, features = ["toml"] }
 dirs = "4"
 futures = "0.3"
 jenkins_api = { version = "0.8.0", optional = true }
