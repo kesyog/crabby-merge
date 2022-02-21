@@ -59,7 +59,3 @@ Each of the TOML keys listed above can be prefixed with `CRABBY_MERGE` and provi
 environment variable. Keys are case-insensitive.
 
 For example, you can pass in the bitbucket API token as `CRABBY_MERGE_API_TOKEN=<your token here>`.
-
-## TODO
-
-* Allow blocking merge on another PR ("merge after" in polly-merge)
