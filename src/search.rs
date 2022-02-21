@@ -54,7 +54,7 @@ async fn check_prs(
         let api_shared = Arc::clone(&api);
         let username = Arc::clone(&username);
         let config = Arc::clone(&config);
-        async move {
+        tokio::spawn(async move {
             if !should_merge(&api_shared, &pr, &username, &config).await {
                 debug!("No merge trigger found in {}", pr.url().unwrap());
                 return;
@@ -66,12 +66,12 @@ async fn check_prs(
                     error!("Could not merge: {:#}", e);
                     cfg_if::cfg_if! {
                         if #[cfg(feature = "jenkins")] {
-                            retry_pr_builds(api_shared.as_ref(), &pr, config.as_ref()).await;
+                            retry_pr_builds(&api_shared, &pr, &config).await;
                         }
                     }
                 }
             };
-        }
+        })
     }))
     .await;
 }
