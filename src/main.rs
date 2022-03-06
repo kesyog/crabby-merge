@@ -69,19 +69,20 @@
 //! jenkins_password = ""
 //! # Regex trigger to search against the build name
 //! jenkins_retry_trigger = ""
+//! # Optional. Defaults to 10.
+//! jenkins_retry_limit = ""
 //! ```
-//!
-//! Note: there is no limit or backoff period provided so be careful of retry loops.
 
-pub use crabby_merge::bitbucket;
+use crabby_merge::bitbucket;
 #[cfg(feature = "jenkins")]
-pub use crabby_merge::jenkins;
-pub use crabby_merge::search;
+use crabby_merge::history_file;
+use crabby_merge::search;
+use crabby_merge::Config;
 
 use anyhow::Result;
-use crabby_merge::Config;
+use cfg_if::cfg_if;
 use futures::future;
-use log::{error, info};
+use log::*;
 use simple_logger::SimpleLogger;
 use std::sync::Arc;
 
@@ -95,7 +96,7 @@ async fn main() -> Result<()> {
 
     let config = Config::load_from_default_file()?;
     let api = Arc::new(bitbucket::Client::new(
-        &config.bitbucket_url,
+        config.bitbucket_url.clone(),
         &config.bitbucket_api_token,
     ));
 
@@ -145,6 +146,12 @@ async fn main() -> Result<()> {
     };
 
     let _ = future::join(f1, f2).await;
+
+    cfg_if! {
+        if #[cfg(feature = "jenkins")] {
+            history_file::decruft().ok();
+        }
+    }
     info!("🚢 all done");
     Ok(())
 }

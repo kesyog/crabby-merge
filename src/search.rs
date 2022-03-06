@@ -1,12 +1,20 @@
 #[cfg(feature = "jenkins")]
+use crate::backoff;
+#[cfg(feature = "jenkins")]
 use crate::bitbucket::BuildState;
 use crate::bitbucket::{self, PullRequest};
 #[cfg(feature = "jenkins")]
 use crate::jenkins;
 use crate::Config;
+#[cfg(feature = "jenkins")]
+use crate::History;
+
 use anyhow::Result;
+use cfg_if::cfg_if;
 use futures::future;
-use log::{debug, error, info};
+#[cfg(feature = "jenkins")]
+use guard::guard;
+use log::*;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -61,10 +69,19 @@ async fn check_prs(
             }
 
             match api_shared.merge_pr(&pr).await {
-                Ok(()) => info!("Merged {}", pr.url().unwrap()),
+                Ok(()) => {
+                    info!("Merged {}", pr.url().unwrap());
+                    cfg_if! {
+                        if #[cfg(feature = "jenkins")] {
+                            if let Some(hash) = pr.hash() {
+                                History::delete(hash).ok();
+                            }
+                        }
+                    }
+                }
                 Err(e) => {
                     error!("Could not merge: {:#}", e);
-                    cfg_if::cfg_if! {
+                    cfg_if! {
                         if #[cfg(feature = "jenkins")] {
                             retry_pr_builds(&api_shared, &pr, &config).await;
                         }
@@ -77,41 +94,36 @@ async fn check_prs(
 }
 
 /// Attempt to rebuild any PR builds that match the retry regex trigger
+#[cfg(feature = "jenkins")]
 async fn retry_pr_builds(api: &bitbucket::Client, pr: &PullRequest, config: &Config) {
-    let (jenkins_auth, retry_trigger) = match (
-        config.jenkins_auth.as_ref(),
-        config.jenkins_retry_regex.as_ref(),
-    ) {
-        (Some(auth), Some(trigger)) => (auth, trigger),
-        _ => {
-            debug!("Jenkins not configured. Skipping retry attempt.");
+    guard!(
+        let (Some(jenkins_auth), Some(retry_trigger)) =
+            (config.jenkins_auth.as_ref(), config.jenkins_retry_regex.as_ref())
+        else {
+            warn!("Jenkins not configured. Skipping retry attempt.");
             return;
         }
-    };
-    let hash = if let Some(hash) = pr.hash() {
-        hash
-    } else {
-        error!("Could not resolve commit hash for PR {:?}", pr);
-        return;
-    };
+    );
+    guard!(
+        let Some(hash) = pr.hash()
+        else {
+            error!("Could not resolve commit hash for PR {:?}", pr);
+            return;
+        }
+    );
     let builds = api.get_build_status(hash).await;
     for build in builds.into_iter().flatten() {
-        if build.state == BuildState::Failed && retry_trigger.is_match(&build.name) {
+        if build.state == BuildState::Failed
+            && retry_trigger.is_match(&build.name)
+            && backoff::should_retry_now(hash, config.jenkins_retry_limit)
+        {
             info!("Attempting rebuild for {}", build.name);
-            match rebuild(&build.url, jenkins_auth.clone()).await {
+            match jenkins::rebuild(&build.url, jenkins_auth.clone()).await {
                 Ok(_) => info!("Rebuilt {}", build.name),
                 Err(e) => error!("{:#}", e),
             };
         }
     }
-}
-
-/// Attempt to rebuild the given build
-#[cfg(feature = "jenkins")]
-async fn rebuild(build_url: &str, jenkins_auth: jenkins::Auth) -> Result<()> {
-    let job = jenkins::Job::new(build_url, jenkins_auth.clone())?;
-    let client = reqwest::Client::new();
-    job.rebuild(&client).await
 }
 
 /// Search PR's authored by the authenticated user for the merge trigger and returns the number of

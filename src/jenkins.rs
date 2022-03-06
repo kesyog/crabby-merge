@@ -1,12 +1,16 @@
+#![cfg(feature = "jenkins")]
+
 use anyhow::{anyhow, Result};
 use jenkins_api::{
     action::{parameters::*, ParametersAction},
     build::WorkflowRun,
 };
-use log::warn;
+use log::*;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use reqwest::header::ACCEPT;
+
+pub const DEFAULT_RETRY_LIMIT: u32 = 5;
 
 #[derive(Debug, Clone)]
 /// Authentication information
@@ -99,6 +103,14 @@ impl Job {
             Err(anyhow!("Rebuild returned {}", response.status()))
         }
     }
+}
+
+/// Attempt to rebuild the given build
+#[cfg(feature = "jenkins")]
+pub async fn rebuild(build_url: &str, jenkins_auth: Auth) -> Result<()> {
+    let job = Job::new(build_url, jenkins_auth.clone())?;
+    let client = reqwest::Client::new();
+    job.rebuild(&client).await
 }
 
 #[cfg(test)]

@@ -73,9 +73,9 @@ impl Client {
     ///
     /// * `base_url` - base URL of the Bitbucket server to query
     /// * `api_token` - API token for user authentication
-    pub fn new(base_url: &impl ToString, api_token: &impl ToString) -> Self {
+    pub fn new(base_url: String, api_token: &str) -> Self {
         let mut headers = HeaderMap::with_capacity(3);
-        let auth_header_value = "Bearer ".to_owned() + &api_token.to_string();
+        let auth_header_value = ["Bearer", api_token].join(" ");
         headers.insert(
             AUTHORIZATION,
             HeaderValue::from_str(&auth_header_value).unwrap(),
@@ -84,7 +84,7 @@ impl Client {
         // Maybe shouldn't send CONTENT_TYPE header for GET requests but doesn't seem to hurt
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         Self {
-            base_url: base_url.to_string(),
+            base_url,
             http_client: reqwest::Client::builder()
                 .default_headers(headers)
                 // Bitbucket server oddly seems to require this
@@ -280,7 +280,7 @@ impl Client {
                     None
                 }
             })
-            .ok_or(anyhow!(response_text))
+            .ok_or_else(|| anyhow!(response_text))
     }
 
     /// Merge the given pull request

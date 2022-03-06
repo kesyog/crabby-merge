@@ -74,6 +74,6 @@ jenkins_username = ""
 jenkins_password = ""
 # Regex trigger to search against the build name
 jenkins_retry_trigger = ""
+# Optional. Defaults to 10.
+jenkins_retry_limit = ""
 ```
-
-Note: there is no limit or backoff period provided so be careful of retry loops.
