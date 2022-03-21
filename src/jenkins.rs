@@ -35,7 +35,7 @@ pub struct Job {
 impl Job {
     pub fn new(job_url: &str, credentials: Auth) -> Result<Self> {
         static URL_REGEX: Lazy<Regex> =
-            Lazy::new(|| Regex::new(r"^(.*/)(\d+)(?:/display/redirect)?$").unwrap());
+            Lazy::new(|| Regex::new(r"^(.*)/(\d+)(?:/)?(?:display/redirect)?$").unwrap());
 
         let captures = URL_REGEX
             .captures(job_url)
@@ -98,5 +98,56 @@ impl Job {
         } else {
             Err(anyhow!("Rebuild returned {}", response.status()))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn url_with_suffix() {
+        let auth = Auth::new(String::from("user"), String::from("hunter2"));
+        let job = Job::new(
+            "http://www.myjenkins.com/project/101/display/redirect",
+            auth,
+        )
+        .unwrap();
+        assert_eq!(
+            "http://www.myjenkins.com/project/101/api/json",
+            job.job_url()
+        );
+        assert_eq!(
+            "http://www.myjenkins.com/project/buildWithParameters",
+            job.trigger_url()
+        );
+    }
+
+    #[test]
+    fn url_without_suffix() {
+        let auth = Auth::new(String::from("user"), String::from("hunter2"));
+        let job = Job::new("http://www.myjenkins.com/project/101/", auth).unwrap();
+        assert_eq!(
+            "http://www.myjenkins.com/project/101/api/json",
+            job.job_url()
+        );
+        assert_eq!(
+            "http://www.myjenkins.com/project/buildWithParameters",
+            job.trigger_url()
+        );
+    }
+
+    #[test]
+    fn url_without_suffix_no_trailing_slash() {
+        let auth = Auth::new(String::from("user"), String::from("hunter2"));
+        let job = Job::new("http://www.myjenkins.com/project/101", auth).unwrap();
+        assert_eq!(
+            "http://www.myjenkins.com/project/101/api/json",
+            job.job_url()
+        );
+        assert_eq!(
+            "http://www.myjenkins.com/project/buildWithParameters",
+            job.trigger_url()
+        );
     }
 }
