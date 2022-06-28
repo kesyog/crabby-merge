@@ -85,7 +85,7 @@ use log::{error, info};
 use simple_logger::SimpleLogger;
 use std::sync::Arc;
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 #[doc(hidden)]
 async fn main() -> Result<()> {
     SimpleLogger::new()

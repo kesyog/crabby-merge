@@ -1407,7 +1407,6 @@ dependencies = [
  "libc",
  "memchr",
  "mio 0.8.3",
- "num_cpus",
  "once_cell",
  "pin-project-lite 0.2.9",
  "socket2 0.4.4",
