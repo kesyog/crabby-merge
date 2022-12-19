@@ -1,6 +1,6 @@
 # crabby-merge
 
-[![build status](https://img.shields.io/github/workflow/status/kesyog/crabby-merge/Rust?style=flat-square)](https://github.com/kesyog/crabby-merge/actions/workflows/rust.yml)
+[![build status](https://img.shields.io/github/actions/workflow/status/kesyog/crabby-merge/rust.yml?branch=master&style=flat-square)](https://github.com/kesyog/crabby-merge/actions/workflows/rust.yml)
 [![crates.io](https://img.shields.io/crates/v/crabby-merge?style=flat-square)](https://crates.io/crates/crabby-merge)
 [![Apache 2.0 license](https://img.shields.io/github/license/kesyog/crabby-merge?style=flat-square)](./LICENSE)
 
