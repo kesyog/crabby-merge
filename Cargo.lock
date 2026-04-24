@@ -169,7 +169,7 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "crabby-merge"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "cfg-if 1.0.4",
